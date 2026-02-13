@@ -4,13 +4,12 @@ local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 --// Support Globals
-local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof } }
+local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {} }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
 RazAPI.WhitelistObject = function(Object, Type)
     RazAPI.WhitelistedTypes[Object] = Type 
 end
-
 
 -- Future file system used in tables.
 VirtualFileSystem.SplitPath = function(path)
@@ -65,6 +64,8 @@ RazAPI.GetFunctionProxy = function(Function, Compare)
     else
         if Compare then
             return FunctionEnv["script"] == script 
+        else
+            return true
         end
     end
 end
@@ -110,11 +111,11 @@ setmetatable(Environment, {
 })
 
 RazAPI.StartConnection(UserInputService, "WindowFocused", function()
-    Environment.WindowActive = true
+    RazAPI.Junk.ClientActive = true
 end, "WindowFocusedConnection")
 
 RazAPI.StartConnection(UserInputService, "WindowFocusReleased", function()
-    Environment.WindowActive = false
+    RazAPI.Junk.ClientActive = false
 end, "WindowFocusReleasedConnection")
 
 Environment.typeof = function(object)
@@ -216,6 +217,20 @@ end
 Environment.iscclosure = function(Function)
     RazAPI.TypeCheck(Function, "function", "iscclosure", 1)
     return debug.info(Function, "s") == "[C]"
+end
+
+Environment.isexecutorclosure = function(Function)
+    RazAPI.TypeCheck(Function, "function", "isexecutorclosure", 1)
+
+    if RazAPI.CClosures[Function] or RazAPI.GetFunctionProxy(Function) == true then
+        return true
+    end
+
+    return false;
+end
+
+Environment.isrbxactive = function()
+    return RazAPI.Junk.ClientActive
 end
 
 --// Metatables
