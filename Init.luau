@@ -92,9 +92,9 @@ RazAPI.CreateThread("Registry", function()
         end
     end
 
-    game.DescendantRemoving:Connect(function(object)
-        table.insert(Registry, object)
-    end)
+    RazAPI.StartConnection(game, "DescendantRemoving", function(x)
+       table.insert(Registry, x)
+    end, "N.I.C(nil_instances_collector)")
 end)
 --// Environment
 local Environment = {}
