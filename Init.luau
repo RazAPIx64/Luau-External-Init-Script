@@ -191,6 +191,8 @@ Environment.compareinstances = function(instance, instancetocompare)
     return instance.Changed == instancetocompare.Changed
 end 
 
+--// Closure
+
 Environment.checkcaller = function()
     local Tracked = debug.info(1, "f")
 
@@ -229,8 +231,112 @@ Environment.isexecutorclosure = function(Function)
     return false;
 end
 
+Environment.newcclosure = function(Function)
+    RazAPI.TypeCheck(Function, "function", "newcclosure", 1)
+    RazAPI.CClosures[Function] = true
+
+    return Function
+end
+
 Environment.isrbxactive = function()
     return RazAPI.Junk.ClientActive
+end
+
+--// Instances
+
+Environment.gethui = function()
+    local success, result = pcall(function()
+        return Environment.cloneref(game:GetService("CoreGui"))
+    end)
+
+    if not success then
+        local Proxy = newproxy(true)
+        local Metatable = getmetatable(Proxy)
+
+        local Folder = Instance.new("Folder", Players.LocalPlayer.PlayerGui);
+        Folder.Name = "BasePlayerGui"
+
+        Metatable.__index = function(_, v)
+            if v == "ClassName" then
+                return "BasePlayerGui"
+            end
+
+            return Folder[v]
+        end
+
+        Metatable.__newindex = function(_, i, v)
+            if i == "Parent" then
+                error("Cannot set the parent of a BasePlayerGui")
+            end
+
+            Folder[i] = v
+        end
+
+        RazAPI.WhitelistObject(Proxy, "Instance")
+        return Metatable
+    end
+
+    return result
+end
+
+Environment.getinstances = function()
+    local Instances = {}
+
+    for i,v in Registry do
+        if type(v) == "Instance" then
+            table.insert(Instances, v)
+        end
+    end
+
+    return Instances
+end
+
+Environment.getnilinstances = function()
+    local Instances = {}
+
+    for i,v in Registry do
+        if type(v) == "Instance" and v.Parent == nil then
+            table.insert(Instances, v)
+        end
+    end
+
+    return Instances
+end
+
+--// Debug
+
+Environment.debug = {}
+
+Environment.debug.getinfo = function(FunctionOrLevel)
+    assert(type(FunctionOrLevel) == "function" or type(FunctionOrLevel) == "number", "Invalid argument #1 to 'info', expected function or number, got " .. type(FunctionOrLevel))
+
+    --[[
+        Field	Type	Description
+        source	string	The name of the chunk that created the function.
+        short_src	string	A "printable" version of source to be used in error messages.
+        func	function	The function itself.
+        what	string	The string "Lua" if the function is a Luau function, or "C" if it is a C function.
+        currentline	number	The current line where the given function is executing. When no line information is available, currentline is set to -1.
+        name	string	The name of the function. If it cannot find a name, then name is a blank string.
+        nups	number	The number of upvalues in the function.
+        numparams	number	The number of parameters in the function (always 0 for C functions).
+        is_vararg	number	Whether the function has a variadic argument (1 if it does, 0 if it does not).
+    ]]
+
+    local Result = {}
+    local ShortSource = debug.info(FunctionOrLevel, "s")
+
+    Result.name = debug.info(FunctionOrLevel, "n")
+    Result.func = debug.info(FunctionOrLevel, "f")
+    Result.what = if ShortSource == '[C]' then 'C' elseif ShortSource == 'Lua' then 'Lua' else 'Lua';
+    Result.numparams = if debug.info(FunctionOrLevel, "s") == "[C]" then 0 else 1
+    Result.is_vararg = select(1, debug.info(FunctionOrLevel, 'a'))
+    Result.currentline = debug.info(FunctionOrLevel, "l")
+    Result.short_src = ShortSource
+    Result.source = `={ShortSource}`
+    Result.nups = 0
+
+    return Result
 end
 
 --// Metatables
