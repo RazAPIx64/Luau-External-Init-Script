@@ -154,7 +154,7 @@ end
 
 --// Init
 Environment.identifyexecutor = function()
-    return "Raz's Init Script", "v1.0.0"
+    return "Raz's Init Script", "v1.1.0"
 end
 
 Environment.getexecutorname = function()
