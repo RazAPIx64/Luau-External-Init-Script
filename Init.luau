@@ -72,25 +72,34 @@ end
 
 --// Registry
 local Registry = {}
---// fake registry for now
-RazAPI.CreateThread("Registry", function()
-    while task.wait() do
-        for i,v in game:GetDescendants() do
+
+RazAPI.AddToRegistry = function(Object, CheckIfExists)
+    if CheckIfExists == nil then
+        CheckIfExists = 0 -- I don't bother.
+    end
+
+    for i,v in Object do
+        if CheckIfExists == 0 then
             if table.find(Registry, v) then
-                continue
+                continue 
             end
 
             table.insert(Registry, v)
-        end
-
-        for _, k in getfenv(0) do
-            if table.find(Registry, k) then
-                continue
-            end
-
+        elseif CheckIfExists == 1 then
             table.insert(Registry, v)
         end
     end
+end
+--// fake registry for now
+RazAPI.CreateThread("Registry", function()
+    while task.wait() do
+        RazAPI.AddToRegistry(game:GetDescendants(), 0)
+        RazAPI.AddToRegistry(getfenv(0), 0)
+    end
+
+    RazAPI.StartConnection(game, "DescendantAdded", function(x)
+       table.insert(Registry, x)
+    end, "I.C(instances_collector)")
 
     RazAPI.StartConnection(game, "DescendantRemoving", function(x)
        table.insert(Registry, x)
@@ -109,6 +118,15 @@ setmetatable(Environment, {
         getfenv(0)[i] = v
     end
 })
+
+--[[
+    Song: Lift, Jump, Exhale
+    Artist: Lucy Bedroque
+    Album: Amy
+
+    Like, "Lucy, you a motherfuckin' meanie"
+    But you hurt, give a lil' nigga Kleenex
+]]
 
 RazAPI.StartConnection(UserInputService, "WindowFocused", function()
     RazAPI.Junk.ClientActive = true
