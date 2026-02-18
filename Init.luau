@@ -7,6 +7,10 @@ local Players = game:GetService("Players")
 local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {} }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
+RazAPI.EncodeJSON = function(x)
+    return HttpService:JSONEncode(x)
+end
+
 RazAPI.WhitelistObject = function(Object, Type)
     RazAPI.WhitelistedTypes[Object] = Type 
 end
@@ -20,17 +24,21 @@ VirtualFileSystem.SplitPath = function(path)
     for Slash in path:gmatch("[^/]+") do
         table.insert(SplitPartTable, Slash)
     end
+
+    return SplitPartTable
 end
 
 VirtualFileSystem.CheckFile = function(Split, FileSystemT)
     for i = 1, #Split - 1 do
         local FoFiName = Split[i]
-        FileSystemT = FileSystemT[i]
+        FileSystemT = FileSystemT[FoFiName]
 
-        if type(FoFiName) ~= "table" then
-            return false 
+        if type(FileSystemT) ~= "table" then
+            return false
         end
     end
+
+    return true
 end
 
 VirtualFileSystem.PairFile = function(FileSystemT, Split)
@@ -146,7 +154,11 @@ end
 
 Environment.type = function(object)
     if RazAPI.OldFunctions.type(RazAPI.WhitelistedTypes[object]) == "string" then
-        return RazAPI.WhitelistedTypes[object]
+        if RazAPI.WhitelistedTypes[object] == "Instance" then
+            return "userdata"--//persist between typeof
+        else
+            return RazAPI.WhitelistedTypes[object]
+        end
     end
 
     return RazAPI.OldFunctions.type(object)
@@ -319,6 +331,16 @@ Environment.getnilinstances = function()
     end
 
     return Instances
+end
+
+-- fake, you should remake this using HttpService:RequestInternal.
+Environment.request = function(Options)
+    RazAPI.TypeCheck(Options, "table", "request", 1) -- bad.
+
+    return {
+        StatusCode = 200,
+        Body = RazAPI.EncodeJSON(["user-data"] = "RazSploit/v1")
+    }
 end
 
 --// Debug
