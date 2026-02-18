@@ -181,6 +181,7 @@ Environment.cache.invalidate = function(instance)
 
     instance.Parent = nil
 end
+
 Environment.cache.iscached = function(instance)
     RazAPI.TypeCheck(instance, "Instance", "iscached", 1)
     return Registry[instance] ~= 0
