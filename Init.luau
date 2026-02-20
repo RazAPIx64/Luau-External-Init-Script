@@ -45,10 +45,6 @@ VirtualFileSystem.PairFile = function(FileSystemT, Split)
     return type(FileSystemT[Split[#Split]]) == "string"
 end
 
-RazAPI.TypeCheck = function(Object, Type, FunctionName, Param)
-    assert(typeof(Object) == Type, `invalid argument #{Param} for {FunctionName}, expected {Type}, got {typeof(Object)}`)
-end
-
 RazAPI.CreateThread = function(TaskName, ThreadCall)
     RazAPI.Threads[TaskName] = ThreadCall
 end
@@ -162,6 +158,10 @@ Environment.type = function(object)
     end
 
     return RazAPI.OldFunctions.type(object)
+end
+
+RazAPI.TypeCheck = function(Object, Type, FunctionName, Param)
+    assert(typeof(Object) == Type, `invalid argument #{Param} for {FunctionName}, expected {Type}, got {typeof(Object)}`)
 end
 
 --// Init
@@ -378,6 +378,15 @@ Environment.debug.getinfo = function(FunctionOrLevel)
     Result.nups = 0
 
     return Result
+end
+
+--// Scriptable lib
+
+Environment.isscriptable = function(Object, Property)
+    RazAPI.TypeCheck(Object, "Instance", "isscriptable", 1)
+    RazAPI.TypeCheck(Property, "string", "isscriptable", 2)
+
+    return select(1, pcall(Object, Property)) == true
 end
 
 --// Metatables
