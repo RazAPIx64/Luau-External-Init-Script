@@ -386,7 +386,7 @@ Environment.isscriptable = function(Object, Property)
     RazAPI.TypeCheck(Object, "Instance", "isscriptable", 1)
     RazAPI.TypeCheck(Property, "string", "isscriptable", 2)
 
-    return select(1, pcall(Object, Property)) == true
+    return (pcall(Object, Property)) == true
 end
 
 --// Metatables
