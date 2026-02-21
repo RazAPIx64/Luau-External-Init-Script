@@ -4,7 +4,7 @@ local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 --// Support Globals
-local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {} }
+local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {} MetatableReg = setmetatable({}, { __mode = "k" }) }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
 RazAPI.EncodeJSON = function(x)
@@ -51,6 +51,41 @@ end
 
 RazAPI.TypeCheck = function(Object, Type, FunctionName, Param)
     assert(typeof(Object) == Type, `invalid argument #{Param} for {FunctionName}, expected {Type}, got {typeof(Object)}`)
+end
+
+RazAPI.CreateMockInstance = function(Object, Lock, GetMt)
+    RazAPI.TypeCheck(Object, "Instance", "CreateMockInstance", 1)
+
+    local InstanceProxy = newproxy(true)
+    local InstanceMt = getmetatable(InstanceProxy)
+
+    InstanceMt.__index = function(_, idx)
+        return object[idx]
+    end
+
+    InstanceMt.__newindex = function(_, idx, new)
+        object[idx] = new
+    end
+
+    RazAPI.MetatableReg[InstanceProxy] = InstanceMt
+
+    if Lock == true then
+        InstanceMt.__metatable = `No.`
+    end
+
+    RazAPI.WhitelistObject(InstanceProxy, "Instance");
+    if GetMt == true then return InstanceMt else return InstanceProxy end
+end
+
+RazAPI.GetUnlockedMockInstance = function(Object)
+    RazAPI.TypeCheck(Object, "Instance", "Object", 1)
+    
+    local ProxyMt = RazAPI.MetatableReg[Object]
+
+    if ProxyMt then
+       ProxyMt.__metatable = nil
+       return RazAPI.MetatableReg[Object]
+    end
 end
 
 RazAPI.CreateThread = function(TaskName, ThreadCall)
@@ -202,20 +237,7 @@ end
 
 Environment.cloneref = function(object)
     RazAPI.TypeCheck(object, "Instance", "cloneref", 1)
-
-    local InstanceProxy = newproxy(true)
-    local InstanceMt = getmetatable(InstanceProxy)
-
-    InstanceMt.__index = function(_, idx)
-        return object[idx]
-    end
-
-    InstanceMt.__newindex = function(_, idx, new)
-        object[idx] = new
-    end
-
-    RazAPI.WhitelistObject(InstanceProxy, "Instance");
-    return InstanceProxy
+    return RazAPI.CreateMockInstance(object, true, false)
 end
 
 Environment.compareinstances = function(instance, instancetocompare)
@@ -306,6 +328,8 @@ Environment.gethui = function()
             Folder[i] = v
         end
 
+        InstanceMt.__metamethod = `No.`
+
         RazAPI.WhitelistObject(Proxy, "Instance")
         return Metatable
     end
@@ -389,9 +413,44 @@ end
 
 --// Scriptable
 
+--// god save us all
+Environment.setscriptable = function(Object, Property, Bool)
+    RazAPI.TypeCheck(Object, "Instance", "setscriptable", 1)
+    RazAPI.TypeCheck(Property, "string", "setscriptable", 2)
+    RazAPI.TypeCheck(Bool, "boolean", "setscriptable", 3)
+
+    RazAPI.ScriptableProperties[Object] = RazAPI.ScriptableProperties[Object] or {}
+
+    local StoredPreviousProp = RazAPI.ScriptableProperties[Object][Property] or false
+
+    RazAPI.ScriptableProperties[Object][Property] = Bool
+    RazAPI.WhitelistedScriptableProp[Object] = Bool
+
+    if RazAPI.GetObjExistence(Object, Property) == false then
+        local Proxy = RazAPI.CreateMockInstance(Object, true, false)
+        local StoredMt = RazAPI.GetUnlockedMockInstance(Proxy)
+
+        StoredMt.__index = function(_, x)
+            if x == Property then
+                if not RazAPI.ScriptableProperties[Object] then
+                    error(`{Property} is not a valid member of {Object.ClassName} "{Object.Name}"`)
+                end
+            end
+
+            return Object[x]
+        end
+    end
+
+    return StoredPreviousProp
+end
+
 Environment.isscriptable = function(Object, Property)
     RazAPI.TypeCheck(Object, "Instance", "isscriptable", 1)
     RazAPI.TypeCheck(Property, "string", "isscriptable", 2)
+
+    if RazAPI.WhitelistedScriptableProp[Object] == true then
+       return true
+    end
 
     return RazAPI.GetObjExistence(Object, Property)
 end
