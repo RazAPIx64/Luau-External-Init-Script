@@ -4,7 +4,7 @@ local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 --// Support Globals
-local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {} }
+local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {} }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
 RazAPI.EncodeJSON = function(x)
@@ -13,6 +13,10 @@ end
 
 RazAPI.WhitelistObject = function(Object, Type)
     RazAPI.WhitelistedTypes[Object] = Type 
+end
+
+RazAPI.GetObjExistence = function(Object, Property)
+    return (pcall(Object, Property))
 end
 
 -- Future file system used in tables.
@@ -43,6 +47,10 @@ end
 
 VirtualFileSystem.PairFile = function(FileSystemT, Split)
     return type(FileSystemT[Split[#Split]]) == "string"
+end
+
+RazAPI.TypeCheck = function(Object, Type, FunctionName, Param)
+    assert(typeof(Object) == Type, `invalid argument #{Param} for {FunctionName}, expected {Type}, got {typeof(Object)}`)
 end
 
 RazAPI.CreateThread = function(TaskName, ThreadCall)
@@ -160,10 +168,6 @@ Environment.type = function(object)
     return RazAPI.OldFunctions.type(object)
 end
 
-RazAPI.TypeCheck = function(Object, Type, FunctionName, Param)
-    assert(typeof(Object) == Type, `invalid argument #{Param} for {FunctionName}, expected {Type}, got {typeof(Object)}`)
-end
-
 --// Init
 Environment.identifyexecutor = function()
     return "Raz's Init Script", "v1.1.0"
@@ -181,7 +185,6 @@ Environment.cache.invalidate = function(instance)
 
     instance.Parent = nil
 end
-
 Environment.cache.iscached = function(instance)
     RazAPI.TypeCheck(instance, "Instance", "iscached", 1)
     return Registry[instance] ~= 0
@@ -380,13 +383,17 @@ Environment.debug.getinfo = function(FunctionOrLevel)
     return Result
 end
 
---// Scriptable lib
+Environment.getgenv = function()
+    return Environment
+end
+
+--// Scriptable
 
 Environment.isscriptable = function(Object, Property)
     RazAPI.TypeCheck(Object, "Instance", "isscriptable", 1)
     RazAPI.TypeCheck(Property, "string", "isscriptable", 2)
 
-    return (pcall(Object, Property)) == true
+    return RazAPI.GetObjExistence(Object, Property)
 end
 
 --// Metatables
