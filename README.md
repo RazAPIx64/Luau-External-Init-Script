@@ -3,4 +3,5 @@ Optimized environment for Luau External Executors that focuses on functionality 
 
 TODO:
 
-Add setscriptable using proxies
+Add setscriptable using proxies: **Done** ✓
+Implement an Instance API for all properties
