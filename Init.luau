@@ -1,10 +1,17 @@
 --// Roblox Service Globals
+local RbxAnalyticsService do
+    RbxAnalyticsService = pcall(function()
+        return game:GetService("RbxAnalyticsService")
+    end)
+end
+
+local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 --// Support Globals
-local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {} MetatableReg = setmetatable({}, { __mode = "k" }) }
+local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {} MetatableReg = setmetatable({}, { __mode = "k" }), EngineSettings = UserSettings() }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
 RazAPI.EncodeJSON = function(x)
@@ -17,6 +24,18 @@ end
 
 RazAPI.GetObjExistence = function(Object, Property)
     return (pcall(Object, Property))
+end
+
+RazAPI.IterateAndFindType(Type, Data)
+    local Res
+
+    for i,v in Data do
+        if typeof(v) == Type then
+            Res = v
+        end
+    end
+
+    return Res
 end
 
 -- Future file system used in tables.
@@ -78,7 +97,7 @@ RazAPI.CreateMockInstance = function(Object, Lock, GetMt)
 end
 
 RazAPI.GetUnlockedMockInstance = function(Object)
-    RazAPI.TypeCheck(Object, "Instance", "Object", 1)
+    RazAPI.TypeCheck(Object, "Instance", "G.U.M.I", 1)
     
     local ProxyMt = RazAPI.MetatableReg[Object]
 
@@ -87,6 +106,33 @@ RazAPI.GetUnlockedMockInstance = function(Object)
        return RazAPI.MetatableReg[Object]
     end
 end
+
+RazAPI.CaptureInstanceClassAndWriteToTable = function(ClassName, ProvidedTable, TableToWrite, ReturnFirst)
+    RazAPI.TypeCheck(ProvidedTable, "table", "CaptureInstanceClass", 2)
+
+    if typeof(ClassName) == "string" then
+        ClassName = { [ClassName] = true }
+    end
+
+    for _, Object in ProvidedTable do
+        if typeof(Object) == "Instance" and ClassName[Object.ClassName] then
+            if ReturnFirst == 0 then
+                return Object
+            end
+
+            table.insert(TableToWrite, Object)
+        end
+    end
+end
+
+RazAPI.FindAndRemoveObject = function(List, Predicate)
+    for i = #List, 1, -1 do
+        if Predicate(List[i]) then
+            table.remove(List, i)
+        end
+    end
+end
+
 
 RazAPI.CreateThread = function(TaskName, ThreadCall)
     RazAPI.Threads[TaskName] = ThreadCall
@@ -153,7 +199,9 @@ RazAPI.CreateThread("Registry", function()
     end, "N.I.C(nil_instances_collector)")
 end)
 --// Environment
-local Environment = {}
+local Environment = {
+    Operia = {} -- Library based on player info, and funny shit.
+}
 local WindowActive
 
 setmetatable(Environment, {
@@ -205,7 +253,7 @@ end
 
 --// Init
 Environment.identifyexecutor = function()
-    return "Raz's Init Script", "v1.1.0"
+    return "Raz's Init Script", "v1.1.5"
 end
 
 Environment.getexecutorname = function()
@@ -371,6 +419,24 @@ Environment.request = function(Options)
     }
 end
 
+--// Script Lib
+
+Environment.getscripts = function()
+    local Scripts = {}
+
+    RazAPI.CaptureInstanceClassAndWriteToTable( { LocalScript = true, ModuleScript = true, Script = true }, Registry, Scripts )
+
+    return Scripts
+end
+
+Environment.getrunningscripts = function()
+    local Scripts = {}
+
+    RazAPI.CaptureInstanceClassAndWriteToTable( { LocalScript = true, ModuleScript = true, Script = true }, Registry, Scripts ) --// c++ formatting woa
+    RazAPI.FindAndRemoveObject( Scripts, function(Object) return Object.Enabled == false end )
+
+    return Scripts
+end
 --// Debug
 
 Environment.debug = {}
@@ -407,6 +473,12 @@ Environment.debug.getinfo = function(FunctionOrLevel)
     return Result
 end
 
+--// similar dbg function?
+
+Environment.getthread = function()
+    return coroutine.running()
+end
+
 Environment.getgenv = function()
     return Environment
 end
@@ -422,6 +494,7 @@ Environment.setscriptable = function(Object, Property, Bool)
     RazAPI.ScriptableProperties[Object] = RazAPI.ScriptableProperties[Object] or {}
 
     local StoredPreviousProp = RazAPI.ScriptableProperties[Object][Property] or false
+    local VariableVirt
 
     RazAPI.ScriptableProperties[Object][Property] = Bool
     RazAPI.WhitelistedScriptableProp[Object] = Bool
@@ -434,6 +507,20 @@ Environment.setscriptable = function(Object, Property, Bool)
             if x == Property then
                 if not RazAPI.ScriptableProperties[Object] then
                     error(`{Property} is not a valid member of {Object.ClassName} "{Object.Name}"`)
+                else
+                    x = VariableVirt
+                end
+            end
+
+            return Object[x]
+        end
+
+        StoredMt.__newindex = function(_, x, v)
+            if x == Property then
+                if not RazAPI.ScriptableProperties[Object] then
+                    error(`{Property} is not a valid member of {Object.ClassName} "{Object.Name}"`)
+                else
+                    VariableVirt = v
                 end
             end
 
@@ -456,6 +543,49 @@ Environment.isscriptable = function(Object, Property)
 end
 
 --// Metatables
+
+--[[ (..IGNORE..)
+
+    --// "we will use debug.info for this, but i don't really care if it doesn't return a string" 
+    Environment.getnamecallmethod = function()
+        local L1 = RazAPI.IterateAndFindType("string", debug.getinfo(1))
+        local L2 = RazAPI.IterateAndFindType("string", debug.getinfo(2))
+        local L3 = RazAPI.IterateAndFindType("string", debug.getinfo(1))
+
+        if #L1 > #L2 and #L1 > #L3 then return L1
+        elseif #L2> #L1 and #L2 > #L3 then return L2
+        elseif #L3 > L1 and #L3 > #L2 then return L3
+
+        -- SON I'M GONNA CRY
+        end
+    end
+]]
+
 Environment.isreadonly = function(x)
     return table.isfrozen(x)
+end
+
+--// Misc
+
+Environment.setfpscap = function(FrameRate)
+    RazAPI.TypeCheck(FrameRate, "number", "setfpscap", 1)
+    RazAPI.EngineSettings.GameSettings.FramerateCap = FrameRate
+
+    --// i love this method
+end
+
+Environment.getfpscap = function()
+    return tonumber(RazAPI.EngineSettings.GameSettings.FramerateCap)
+end
+
+--// Unreferenced shit
+
+Environment.gethwid = function()
+    local Success, Result = xpcall(function()
+        return RbxAnalyticsService:GetClientId()
+    end, function()
+        return HttpService:GenerateGUID(false)
+    end)
+
+    return Result
 end
