@@ -431,6 +431,28 @@ Environment.getrunningscripts = function()
 
 	return Scripts
 end
+
+Environment.getloadedmodules = function(ExcludeCoreScripts)
+    local Modules = {}
+
+    if ExcludeCoreScripts == false or ExcludeCoreScripts == nil then
+        for i,v in game:GetDescendants() do
+            if RazAPI.RequiredModules[v] then
+                table.insert(Modules, v)
+            elseif v.ClassName == "CoreScript" then
+                table.insert(Modules, v)
+            end
+        end
+    elseif ExcludeCoreScripts == true then
+        for i,v in game:GetDescendants() do
+            if RazAPI.RequiredModules[v] then
+                table.insert(Modules, v)
+            end
+        end
+    end
+
+    return Modules
+end
 --// Debug
 
 Environment.debug = {
