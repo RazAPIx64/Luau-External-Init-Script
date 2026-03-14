@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 --// Support Globals
-local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {}, MetatableReg = setmetatable({}, { __mode = "k" }), EngineSettings = UserSettings() }
+local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof, debug = debug }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {}, MetatableReg = setmetatable({}, { __mode = "k" }), EngineSettings = UserSettings() }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
 RazAPI.EncodeJSON = function(x)
@@ -206,11 +206,11 @@ local WindowActive
 
 setmetatable(Environment, {
 	__index = function(_, i)
-		return getfenv(debug.info(0, 'f'))[i]
+		return getfenv(debug.info(2, 'f'))[i]
 	end,
 
 	__newindex = function(_, i, v)
-		getfenv(debug.info(0, 'f'))[i] = v
+		getfenv(debug.info(2, 'f'))[i] = v
 	end
 })
 
@@ -439,7 +439,16 @@ Environment.getrunningscripts = function()
 end
 --// Debug
 
-Environment.debug = {}
+Environment.debug = {
+	info = RazAPI.OldFunctions.debug.info,
+	getmemorycategory = RazAPI.OldFunctions.debug.getmemorycategory,
+	setmemorycategory = RazAPI.OldFunctions.debug.setmemorycategory,
+	traceback = RazAPI.OldFunctions.debug.traceback,
+	resetmemorycategory = RazAPI.OldFunctions.debug.resetmemorycategory,
+	profileend = RazAPI.OldFunctions.debug.profileend,
+	profilebegin = RazAPI.OldFunctions.debug.profilebegin,
+	dumpcodesize = RazAPI.OldFunctions.debug.dumpcodesize
+}
 
 Environment.debug.getinfo = function(FunctionOrLevel)
 	assert(type(FunctionOrLevel) == "function" or type(FunctionOrLevel) == "number", "Invalid argument #1 to 'info', expected function or number, got " .. type(FunctionOrLevel))
