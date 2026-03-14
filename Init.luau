@@ -415,7 +415,7 @@ Environment.request = function(Options)
 
 	return {
 		StatusCode = 200,
-		Body = RazAPI.EncodeJSON({["user-data"] = "RazSploit/v1"})
+		Body = RazAPI.EncodeJSON({["user-agent"] = "RazSploit/v1"})
 	}
 end
 
