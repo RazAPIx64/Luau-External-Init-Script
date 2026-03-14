@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 --// Support Globals
-local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, OldFunctions = { type = type, typeof = typeof, debug = debug }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {}, MetatableReg = setmetatable({}, { __mode = "k" }), EngineSettings = UserSettings() }
+local RazAPI = { Threads = {}, Connections = {}, WhitelistedTypes = {}, RequiredModules = {}, OldFunctions = { type = type, typeof = typeof, debug = debug, require = require }, Junk = { ClientActive = false }, CClosures = {}, ScriptableProperties = {}, WhitelistedScriptableProp = {}, MetatableReg = setmetatable({}, { __mode = "k" }), EngineSettings = UserSettings() }
 local VirtualFileSystem = {} -- xeno reference wtfff
 
 RazAPI.EncodeJSON = function(x)
@@ -107,32 +107,6 @@ RazAPI.GetUnlockedMockInstance = function(Object)
 	end
 end
 
-RazAPI.CaptureInstanceClassAndWriteToTable = function(ClassName, ProvidedTable, TableToWrite, ReturnFirst)
-	RazAPI.TypeCheck(ProvidedTable, "table", "CaptureInstanceClass", 2)
-
-	if typeof(ClassName) == "string" then
-		ClassName = { [ClassName] = true }
-	end
-
-	for _, Object in ProvidedTable do
-		if typeof(Object) == "Instance" and ClassName[Object.ClassName] then
-			if ReturnFirst == 0 then
-				return Object
-			end
-
-			table.insert(TableToWrite, Object)
-		end
-	end
-end
-
-RazAPI.FindAndRemoveObject = function(List, Predicate)
-	for i = #List, 1, -1 do
-		if Predicate(List[i]) then
-			table.remove(List, i)
-		end
-	end
-end
-
 
 RazAPI.CreateThread = function(TaskName, ThreadCall)
 	RazAPI.Threads[TaskName] = ThreadCall
@@ -163,40 +137,37 @@ RazAPI.GetFunctionProxy = function(Function, Compare)
 	end
 end
 
---// Registry
-local Registry = {}
-
-RazAPI.AddToRegistry = function(Object, CheckIfExists)
-	if CheckIfExists == nil then
-		CheckIfExists = 0 -- I don't bother.
-	end
-
-	for i,v in Object do
-		if CheckIfExists == 0 then
-			if table.find(Registry, v) then
-				continue 
-			end
-
-			table.insert(Registry, v)
-		elseif CheckIfExists == 1 then
-			table.insert(Registry, v)
-		end
-	end
+RazAPI.FilterInstances = function(Table, Requirements, AddOrNot)
+    for i,v in Table do
+        if typeof(v) == "Instance" then
+            if Requirements(v) then
+                if AddOrNot[1] == true then
+                    table.insert(AddOrNot[2], v)
+                else
+                    return v
+                end
+            end
+        end
+    end
 end
+
+--// Registry
+RazAPI.Registry = {}
+
 --// fake registry for now
 RazAPI.CreateThread("Registry", function()
 	while task.wait() do
-		RazAPI.AddToRegistry(game:GetDescendants(), 0)
-		RazAPI.AddToRegistry(getfenv(debug.info(0, 'f')), 0)
+        for i,v in game:GetDescendants() do
+            if RazAPI.Registry[v] then
+                continue
+            end
+        
+            table.insert(RazAPI.Registry, v)
+        end
 	end
 
-	RazAPI.StartConnection(game, "DescendantAdded", function(x)
-		table.insert(Registry, x)
-	end, "I.C(instances_collector)")
-
-	RazAPI.StartConnection(game, "DescendantRemoving", function(x)
-		table.insert(Registry, x)
-	end, "N.I.C(nil_instances_collector)")
+	RazAPI.StartConnection(game, "DescendantAdded", function(x) table.insert(RazAPI.Registry, x) end, "Active Instance Collector")
+	RazAPI.StartConnection(game, "DescendantRemoving", function(x) table.insert(RazAPI.Registry, x) end, "NULL Collection")
 end)
 --// Environment
 local Environment = {
@@ -231,6 +202,11 @@ RazAPI.StartConnection(UserInputService, "WindowFocusReleased", function()
 	RazAPI.Junk.ClientActive = false
 end, "WindowFocusReleasedConnection")
 
+Environment.require = function(module)
+    RazAPI.OldFunctions.require(module)
+    RazAPI.RequiredModules[module] = module
+end
+
 Environment.typeof = function(object)
 	if RazAPI.OldFunctions.type(RazAPI.WhitelistedTypes[object]) == "string" then
 		return RazAPI.WhitelistedTypes[object]
@@ -253,7 +229,7 @@ end
 
 --// Init
 Environment.identifyexecutor = function()
-	return "Raz's Init Script", "v1.1.5"
+	return "Raz's Init Script", "v1.2.0"
 end
 
 Environment.getexecutorname = function()
@@ -264,23 +240,23 @@ Environment.cache = {}
 
 Environment.cache.invalidate = function(instance)
 	RazAPI.TypeCheck(instance, "Instance", "invalidate", 1)
-	Registry[instance] = 0
+	RazAPI.Registry[instance] = 0
 
 	instance.Parent = nil
 end
 Environment.cache.iscached = function(instance)
 	RazAPI.TypeCheck(instance, "Instance", "iscached", 1)
-	return Registry[instance] ~= 0
+	return RazAPI.Registry[instance] ~= 0
 end
 
 Environment.cache.replace = function(instance, instance2)
 	RazAPI.TypeCheck(instance, "Instance", "replace", 1)
 	RazAPI.TypeCheck(instance2, "Instance", "replace", 2)
 
-	table.insert(Registry, instance)
-	table.insert(Registry, instance2)
+	table.insert(RazAPI.Registry, instance)
+	table.insert(RazAPI.Registry, instance2)
 
-	Registry[instance] = Registry[instance2]
+	RazAPI.Registry[instance] = RazAPI.Registry[instance2]
 end
 
 Environment.cloneref = function(object)
@@ -349,46 +325,38 @@ end
 --// Instances
 
 Environment.gethui = function()
-	local success, result = pcall(function()
-		return Environment.cloneref(game:GetService("CoreGui"))
-	end)
+	local Proxy = newproxy(true)
+	local Metatable = getmetatable(Proxy)
 
-	if not success then
-		local Proxy = newproxy(true)
-		local Metatable = getmetatable(Proxy)
+	local Folder = Instance.new("Folder", Players.LocalPlayer.PlayerGui);
+	Folder.Name = "BasePlayerGui"
 
-		local Folder = Instance.new("Folder", Players.LocalPlayer.PlayerGui);
-		Folder.Name = "BasePlayerGui"
-
-		Metatable.__index = function(_, v)
-			if v == "ClassName" then
-				return "BasePlayerGui"
-			end
-
-			return Folder[v]
+	Metatable.__index = function(_, v)
+		if v == "ClassName" then
+			return "BasePlayerGui"
 		end
 
-		Metatable.__newindex = function(_, i, v)
-			if i == "Parent" then
-				error("Cannot set the parent of a BasePlayerGui")
-			end
-
-			Folder[i] = v
-		end
-
-		InstanceMt.__metamethod = `No.`
-
-		RazAPI.WhitelistObject(Proxy, "Instance")
-		return Metatable
+		return Folder[v]
 	end
 
-	return result
+	Metatable.__newindex = function(_, i, v)
+		if i == "Parent" then
+			error("Cannot set the parent of a BasePlayerGui")
+		end
+
+		Folder[i] = v
+	end
+
+	Metatable.__metatable = `No.`
+
+	RazAPI.WhitelistObject(Proxy, "Instance")
+	return Proxy	
 end
 
 Environment.getinstances = function()
 	local Instances = {}
 
-	for i,v in Registry do
+	for i,v in RazAPI.Registry do
 		if typeof(v) == "Instance" then
 			table.insert(Instances, v)
 		end
@@ -400,7 +368,7 @@ end
 Environment.getnilinstances = function()
 	local Instances = {}
 
-	for i,v in Registry do
+	for i,v in RazAPI.Registry do
 		if typeof(v) == "Instance" and v.Parent == nil then
 			table.insert(Instances, v)
 		end
@@ -411,6 +379,7 @@ end
 
 -- fake, you should remake this using HttpService:RequestInternal.
 Environment.request = function(Options)
+    task.wait(0.5)
 	RazAPI.TypeCheck(Options, "table", "request", 1) -- bad.
 
 	return {
@@ -424,7 +393,13 @@ end
 Environment.getscripts = function()
 	local Scripts = {}
 
-	RazAPI.CaptureInstanceClassAndWriteToTable( { LocalScript = true, ModuleScript = true, Script = true }, Registry, Scripts )
+    for i,v in game:GetDescendants() do
+        if typeof(v) == "Instance" then
+            if v.ClassName == "LocalScript" or v.ClassName == "ModuleScript" or v.ClassName == "Script" then
+                table.insert(Scripts, v)
+            end
+        end
+    end
 
 	return Scripts
 end
@@ -432,8 +407,27 @@ end
 Environment.getrunningscripts = function()
 	local Scripts = {}
 
-	RazAPI.CaptureInstanceClassAndWriteToTable( { LocalScript = true, ModuleScript = true, Script = true }, Registry, Scripts ) --// c++ formatting woa
-	RazAPI.FindAndRemoveObject( Scripts, function(Object) return Object.Enabled == false end )
+	RazAPI.FilterInstances(game:GetDescendants(), function(v)
+		if v:IsA("Script") then
+			local Success, Result = pcall(function() return v.RunContext == Enum.RunContext.Legacy or v.RunContext == Enum.RunContext.Client end)
+
+            if Success then
+                if Result == true then
+                    return v.Enabled
+                end
+            else
+                return false
+            end
+		end
+
+        if v:IsA("ModuleScript") then
+            if RazAPI.RequiredModules[v] then
+                return true
+            end
+        end
+
+		return v:IsA("LocalScript")
+	end, { [1] = true, [2] = Scripts })
 
 	return Scripts
 end
@@ -548,7 +542,8 @@ Environment.isscriptable = function(Object, Property)
 		return true
 	end
 
-	return RazAPI.GetObjExistence(Object, Property)
+	local Success, Result = pcall(function() return Object[Property] end)
+    if not Success then return false else return true end
 end
 
 --// Metatables
